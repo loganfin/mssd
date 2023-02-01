@@ -8,6 +8,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <stdio.h>
+#include <queue.h>
 #include "pico/stdlib.h"
 
 #define SEV_SEG_CC1 11    // common cathode corresponding to the left digit (active low)
@@ -32,7 +33,11 @@
 
 //void vCounterTask(TickType_t xDelay);
 void vCounterTask();
+void vBlinkTask();
+void vRightDisplayTask();
 void vSevSegDisplay(uint16_t display, uint16_t number);
+
+QueueHandle_t xQueue;
 
 int main()
 {
@@ -64,8 +69,17 @@ int main()
     gpio_set_dir(SEV_SEG_DP, GPIO_OUT);
     gpio_set_dir(LED_PIN, GPIO_OUT);
 
-    xTaskCreate(vCounterTask, "CounterTask", 256, NULL, 1, NULL);
-    vTaskStartScheduler();
+    // create a queue to communicate between vCounterTask and vBlinkTask
+    xQueue = xQueueCreate(5, sizeof(uint16_t));
+    if (xQueue != NULL) {
+        xTaskCreate(vCounterTask, "CounterTask", 256, NULL, 1, NULL);
+        //xTaskCreate(vBlinkTask, "BlinkTask", 256, NULL, 2, NULL);
+        xTaskCreate(vRightDisplayTask, "RightDisplayTask", 256, NULL, 2, NULL);
+        vTaskStartScheduler();
+    }
+    else {
+        /* the queue could not be created */
+    }
 
     while(true);
 }
@@ -74,6 +88,7 @@ void vCounterTask()
 {
     uint16_t counter = 0;
     uint16_t operand = 1;
+    BaseType_t xStatus;
 
     while (true) {
         if (counter == 0) {
@@ -83,8 +98,38 @@ void vCounterTask()
             operand = -1;
         }
         for (int i = 0; i < 42; i++) {
+            printf("counter: %d\n", counter);
+            xStatus = xQueueSendToBack(xQueue, &counter, 0);
             counter += operand;
             vTaskDelay(0.5 * configTICK_RATE_HZ);
+        }
+    }
+}
+
+void vBlinkTask()
+{
+    uint16_t receivedCounter = 0;
+    BaseType_t xStatus;
+
+    while(true) {
+        xStatus = xQueueReceive(xQueue, &receivedCounter, 100);
+        if (xStatus == pdPASS) {
+            gpio_put(LED_PIN, LED_ON);
+            vTaskDelay(10);
+            gpio_put(LED_PIN, LED_OFF);
+        }
+    }
+}
+
+void vRightDisplayTask()
+{
+    uint16_t receivedCounter = 0;
+    BaseType_t xStatus;
+
+    while (true) {
+        xStatus = xQueueReceive(xQueue, &receivedCounter, 100);
+        if (xStatus == pdPASS) {
+            vSevSegDisplay(2, receivedCounter % 10);
         }
     }
 }
