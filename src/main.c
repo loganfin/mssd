@@ -30,7 +30,9 @@
 #define LED_ON 1
 #define LED_OFF 0
 
-void vSevSegDisplay(uint16_t display, uint16_t number, TickType_t delay);
+//void vCounterTask(TickType_t xDelay);
+void vCounterTask();
+void vSevSegDisplay(uint16_t display, uint16_t number);
 
 int main()
 {
@@ -62,22 +64,42 @@ int main()
     gpio_set_dir(SEV_SEG_DP, GPIO_OUT);
     gpio_set_dir(LED_PIN, GPIO_OUT);
 
-    //vTaskStartScheduler();
+    xTaskCreate(vCounterTask, "CounterTask", 256, NULL, 1, NULL);
+    vTaskStartScheduler();
 
-    while(true) {
-        gpio_put(LED_PIN, LED_ON);
-        for (uint16_t i = 0; i < 11; i++) {
-            vSevSegDisplay(1, i, 1000);
+    while(true);
+}
+
+void vCounterTask()
+{
+    uint16_t counter = 0;
+    uint16_t operand = 1;
+
+    while (true) {
+        if (counter == 0) {
+            operand = 1;
         }
-        gpio_put(LED_PIN, LED_OFF);
-        for (uint16_t i = 0; i < 11; i++) {
-            vSevSegDisplay(2, i, 1000);
+        else if (counter == 42) {
+            operand = -1;
+        }
+        for (int i = 0; i < 42; i++) {
+            counter += operand;
+            vTaskDelay(0.5 * configTICK_RATE_HZ);
         }
     }
 }
 
-void vSevSegDisplay(uint16_t display, uint16_t number, TickType_t delay)
+void vSevSegDisplay(uint16_t display, uint16_t number)
 {
+    gpio_put(SEV_SEG_A, LED_OFF);
+    gpio_put(SEV_SEG_B, LED_OFF);
+    gpio_put(SEV_SEG_C, LED_OFF);
+    gpio_put(SEV_SEG_D, LED_OFF);
+    gpio_put(SEV_SEG_E, LED_OFF);
+    gpio_put(SEV_SEG_F, LED_OFF);
+    gpio_put(SEV_SEG_G, LED_OFF);
+    gpio_put(SEV_SEG_DP, LED_OFF);
+
     switch (display) {
         case 1:
             gpio_put(SEV_SEG_CC2, SEV_SEG_CC_OFF);
@@ -167,16 +189,4 @@ void vSevSegDisplay(uint16_t display, uint16_t number, TickType_t delay)
             gpio_put(SEV_SEG_DP, LED_ON);
             break;
     }
-
-    //vTaskDelay(delay);
-    sleep_ms(delay);
-
-    gpio_put(SEV_SEG_A, LED_OFF);
-    gpio_put(SEV_SEG_B, LED_OFF);
-    gpio_put(SEV_SEG_C, LED_OFF);
-    gpio_put(SEV_SEG_D, LED_OFF);
-    gpio_put(SEV_SEG_E, LED_OFF);
-    gpio_put(SEV_SEG_F, LED_OFF);
-    gpio_put(SEV_SEG_G, LED_OFF);
-    gpio_put(SEV_SEG_DP, LED_OFF);
 }
