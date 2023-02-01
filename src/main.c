@@ -34,6 +34,7 @@
 //void vCounterTask(TickType_t xDelay);
 void vCounterTask();
 void vBlinkTask();
+void vLeftDisplayTask();
 void vRightDisplayTask();
 void vSevSegDisplay(uint16_t display, uint16_t number);
 
@@ -70,11 +71,12 @@ int main()
     gpio_set_dir(LED_PIN, GPIO_OUT);
 
     // create a queue to communicate between vCounterTask and vBlinkTask
-    xQueue = xQueueCreate(5, sizeof(uint16_t));
+    xQueue = xQueueCreate(1, sizeof(uint16_t));
     if (xQueue != NULL) {
         xTaskCreate(vCounterTask, "CounterTask", 256, NULL, 1, NULL);
         //xTaskCreate(vBlinkTask, "BlinkTask", 256, NULL, 2, NULL);
-        xTaskCreate(vRightDisplayTask, "RightDisplayTask", 256, NULL, 2, NULL);
+        xTaskCreate(vLeftDisplayTask, "LeftDisplayTask", 256, NULL, 1, NULL);
+        //xTaskCreate(vRightDisplayTask, "RightDisplayTask", 256, NULL, 1, NULL);
         vTaskStartScheduler();
     }
     else {
@@ -121,16 +123,23 @@ void vBlinkTask()
     }
 }
 
+void vLeftDisplayTask()
+{
+    uint16_t receivedCounter = 0;
+
+    while (true) {
+        xQueueReceive(xQueue, &receivedCounter, portMAX_DELAY);
+        vSevSegDisplay(1, receivedCounter / 10);
+    }
+}
+
 void vRightDisplayTask()
 {
     uint16_t receivedCounter = 0;
-    BaseType_t xStatus;
 
     while (true) {
-        xStatus = xQueueReceive(xQueue, &receivedCounter, 100);
-        if (xStatus == pdPASS) {
-            vSevSegDisplay(2, receivedCounter % 10);
-        }
+        xQueueReceive(xQueue, &receivedCounter, portMAX_DELAY);
+        vSevSegDisplay(2, receivedCounter % 10);
     }
 }
 
