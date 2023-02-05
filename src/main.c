@@ -9,6 +9,7 @@
 #include <task.h>
 #include <stdio.h>
 #include <queue.h>
+#include <semphr.h>
 #include "pico/stdlib.h"
 
 #define SEV_SEG_CC1 11    // common cathode corresponding to the left digit (active low)
@@ -34,11 +35,13 @@
 //void vCounterTask(TickType_t xDelay);
 void vCounterTask();
 void vBlinkTask();
+void vDisplaySemGiver();
 void vLeftDisplayTask();
 void vRightDisplayTask();
 void vSevSegDisplay(uint16_t display, uint16_t number);
 
 QueueHandle_t xQueue;
+SemaphoreHandle_t xSemaphore;
 
 int main()
 {
@@ -71,12 +74,14 @@ int main()
     gpio_set_dir(LED_PIN, GPIO_OUT);
 
     // create a queue to communicate between vCounterTask and vBlinkTask
-    xQueue = xQueueCreate(1, sizeof(uint16_t));
+    xQueue = xQueueCreate(2, sizeof(uint16_t));
+    xSemaphore = xSemaphoreCreateBinary();
     if (xQueue != NULL) {
         xTaskCreate(vCounterTask, "CounterTask", 256, NULL, 1, NULL);
-        //xTaskCreate(vBlinkTask, "BlinkTask", 256, NULL, 2, NULL);
+        xTaskCreate(vBlinkTask, "BlinkTask", 256, NULL, 1, NULL);
+        xTaskCreate(vDisplaySemGiver, "DisplaySemGiver", 256, NULL, 1, NULL);
         xTaskCreate(vLeftDisplayTask, "LeftDisplayTask", 256, NULL, 1, NULL);
-        //xTaskCreate(vRightDisplayTask, "RightDisplayTask", 256, NULL, 1, NULL);
+        xTaskCreate(vRightDisplayTask, "RightDisplayTask", 256, NULL, 1, NULL);
         vTaskStartScheduler();
     }
     else {
@@ -92,6 +97,7 @@ void vCounterTask()
     uint16_t operand = 1;
     BaseType_t xStatus;
 
+
     while (true) {
         if (counter == 0) {
             operand = 1;
@@ -99,12 +105,21 @@ void vCounterTask()
         else if (counter == 42) {
             operand = -1;
         }
-        for (int i = 0; i < 42; i++) {
-            printf("counter: %d\n", counter);
-            xStatus = xQueueSendToBack(xQueue, &counter, 0);
-            counter += operand;
-            vTaskDelay(0.5 * configTICK_RATE_HZ);
-        }
+        xStatus = xQueueSendToBack(xQueue, &counter, 0);
+        //xStatus = xQueueSendToBack(xQueue, &counter, 0);
+        xStatus = xQueueSendToBack(xQueue, &counter, 0);
+        counter += operand;
+        vTaskDelay(0.5 * configTICK_RATE_HZ);
+        /*
+           for (int i = 0; i < 42; i++) {
+           printf("counter: %d\n", counter);
+           xStatus = xQueueSendToBack(xQueue, &counter, 0);
+           xStatus = xQueueSendToBack(xQueue, &counter, 0);
+           xSemaphoreGive(xSemaphore);
+           counter += operand;
+           vTaskDelay(0.5 * configTICK_RATE_HZ);
+           }
+           */
     }
 }
 
@@ -112,24 +127,39 @@ void vBlinkTask()
 {
     uint16_t receivedCounter = 0;
     BaseType_t xStatus;
+    //portTICK_RATE_MS;
 
     while(true) {
-        xStatus = xQueueReceive(xQueue, &receivedCounter, 100);
+        //xSemaphoreGive(xSemaphore);
+        //printf("Semaphore Given\n");
+        xStatus = xQueuePeek(xQueue, &receivedCounter, 0);
         if (xStatus == pdPASS) {
             gpio_put(LED_PIN, LED_ON);
-            vTaskDelay(10);
+            vTaskDelay(0.25 * configTICK_RATE_HZ);
             gpio_put(LED_PIN, LED_OFF);
         }
     }
 }
 
+void vDisplaySemGiver()
+{
+    while (true) {
+        xSemaphoreGive(xSemaphore);
+    }
+}
+
+// each task needs to run 15 times per count semaphore given
 void vLeftDisplayTask()
 {
     uint16_t receivedCounter = 0;
 
     while (true) {
-        xQueueReceive(xQueue, &receivedCounter, portMAX_DELAY);
-        vSevSegDisplay(1, receivedCounter / 10);
+        if (xSemaphoreTake(xSemaphore, portMAX_DELAY)) {
+            //printf("Semaphore taken in LDT\n");
+            xQueueReceive(xQueue, &receivedCounter, 0);
+            vSevSegDisplay(1, receivedCounter / 10);
+            //xSemaphoreGive(xSemaphore);
+        }
     }
 }
 
@@ -138,8 +168,12 @@ void vRightDisplayTask()
     uint16_t receivedCounter = 0;
 
     while (true) {
-        xQueueReceive(xQueue, &receivedCounter, portMAX_DELAY);
-        vSevSegDisplay(2, receivedCounter % 10);
+        if (xSemaphoreTake(xSemaphore, portMAX_DELAY)) {
+            //printf("Semaphore taken in RDT\n");
+            xQueueReceive(xQueue, &receivedCounter, 0);
+            vSevSegDisplay(2, receivedCounter % 10);
+            //xSemaphoreGive(xSemaphore);
+        }
     }
 }
 
