@@ -138,6 +138,7 @@ void vBlinkTask()
             vTaskDelay(0.25 * configTICK_RATE_HZ);
             gpio_put(LED_PIN, LED_OFF);
         }
+        taskYIELD();
     }
 }
 
