@@ -60,7 +60,7 @@ int main()
     gpio_init(SEV_SEG_DP);
     gpio_init(LED_PIN);
 
-    // set the gpio direction of the required pins
+    // set the gpio direction of the pins
     gpio_set_dir(SEV_SEG_CC1, GPIO_OUT);
     gpio_set_dir(SEV_SEG_CC2, GPIO_OUT);
     gpio_set_dir(SEV_SEG_A, GPIO_OUT);
@@ -76,7 +76,8 @@ int main()
     // create a queue to communicate between vCounterTask and vBlinkTask
     xQueue = xQueueCreate(2, sizeof(uint16_t));
     xSemaphore = xSemaphoreCreateBinary();
-    if (xQueue != NULL) {
+
+    if (xQueue != NULL && xSemaphore != NULL) {
         xTaskCreate(vCounterTask, "CounterTask", 256, NULL, 1, NULL);
         xTaskCreate(vBlinkTask, "BlinkTask", 256, NULL, 1, NULL);
         xTaskCreate(vDisplaySemGiver, "DisplaySemGiver", 256, NULL, 1, NULL);
@@ -85,7 +86,7 @@ int main()
         vTaskStartScheduler();
     }
     else {
-        /* the queue could not be created */
+        /* the queue or semaphore could not be created */
     }
 
     while(true);
@@ -94,32 +95,21 @@ int main()
 void vCounterTask()
 {
     uint16_t counter = 0;
-    uint16_t operand = 1;
+    uint16_t addend = 1;
     BaseType_t xStatus;
 
 
     while (true) {
         if (counter == 0) {
-            operand = 1;
+            addend = 1;
         }
         else if (counter == 42) {
-            operand = -1;
+            addend = -1;
         }
         xStatus = xQueueSendToBack(xQueue, &counter, 0);
-        //xStatus = xQueueSendToBack(xQueue, &counter, 0);
         xStatus = xQueueSendToBack(xQueue, &counter, 0);
-        counter += operand;
+        counter += addend;
         vTaskDelay(0.5 * configTICK_RATE_HZ);
-        /*
-           for (int i = 0; i < 42; i++) {
-           printf("counter: %d\n", counter);
-           xStatus = xQueueSendToBack(xQueue, &counter, 0);
-           xStatus = xQueueSendToBack(xQueue, &counter, 0);
-           xSemaphoreGive(xSemaphore);
-           counter += operand;
-           vTaskDelay(0.5 * configTICK_RATE_HZ);
-           }
-           */
     }
 }
 
@@ -127,11 +117,8 @@ void vBlinkTask()
 {
     uint16_t receivedCounter = 0;
     BaseType_t xStatus;
-    //portTICK_RATE_MS;
 
     while(true) {
-        //xSemaphoreGive(xSemaphore);
-        //printf("Semaphore Given\n");
         xStatus = xQueuePeek(xQueue, &receivedCounter, 0);
         if (xStatus == pdPASS) {
             gpio_put(LED_PIN, LED_ON);
@@ -149,17 +136,14 @@ void vDisplaySemGiver()
     }
 }
 
-// each task needs to run 15 times per count semaphore given
 void vLeftDisplayTask()
 {
     uint16_t receivedCounter = 0;
 
     while (true) {
         if (xSemaphoreTake(xSemaphore, portMAX_DELAY)) {
-            //printf("Semaphore taken in LDT\n");
             xQueueReceive(xQueue, &receivedCounter, 0);
             vSevSegDisplay(1, receivedCounter / 10);
-            //xSemaphoreGive(xSemaphore);
         }
     }
 }
@@ -170,10 +154,8 @@ void vRightDisplayTask()
 
     while (true) {
         if (xSemaphoreTake(xSemaphore, portMAX_DELAY)) {
-            //printf("Semaphore taken in RDT\n");
             xQueueReceive(xQueue, &receivedCounter, 0);
             vSevSegDisplay(2, receivedCounter % 10);
-            //xSemaphoreGive(xSemaphore);
         }
     }
 }
