@@ -32,7 +32,6 @@
 #define LED_ON 1
 #define LED_OFF 0
 
-//void vCounterTask(TickType_t xDelay);
 void vCounterTask();
 void vBlinkTask();
 void vDisplaySemGiver();
@@ -47,7 +46,7 @@ int main()
 {
     stdio_init_all();
 
-    // initialize the required pins
+    /* initialize the required pins */
     gpio_init(SEV_SEG_CC1);
     gpio_init(SEV_SEG_CC2);
     gpio_init(SEV_SEG_A);
@@ -60,7 +59,7 @@ int main()
     gpio_init(SEV_SEG_DP);
     gpio_init(LED_PIN);
 
-    // set the gpio direction of the pins
+    /* set the gpio direction of the pins */
     gpio_set_dir(SEV_SEG_CC1, GPIO_OUT);
     gpio_set_dir(SEV_SEG_CC2, GPIO_OUT);
     gpio_set_dir(SEV_SEG_A, GPIO_OUT);
@@ -73,7 +72,7 @@ int main()
     gpio_set_dir(SEV_SEG_DP, GPIO_OUT);
     gpio_set_dir(LED_PIN, GPIO_OUT);
 
-    // create a queue to communicate between vCounterTask and vBlinkTask
+    /* create a queue to communicate between vCounterTask and vBlinkTask */
     xQueue = xQueueCreate(2, sizeof(uint16_t));
     xSemaphore = xSemaphoreCreateBinary();
 
@@ -85,9 +84,8 @@ int main()
         xTaskCreate(vRightDisplayTask, "RightDisplayTask", 256, NULL, 1, NULL);
         vTaskStartScheduler();
     }
-    else {
-        /* the queue or semaphore could not be created */
-    }
+
+    /* the queue or semaphore could not be created */
 
     while(true);
 }
@@ -125,7 +123,7 @@ void vBlinkTask()
             vTaskDelay(0.25 * configTICK_RATE_HZ);
             gpio_put(LED_PIN, LED_OFF);
         }
-        taskYIELD();
+        vTaskDelay(0);
     }
 }
 
